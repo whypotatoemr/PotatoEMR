@@ -1,0 +1,33 @@
+﻿@page "/"
+@rendermode InteractiveServer
+
+@* nav has to be here with interactive rendermode, otherwise clicks dont call function *@
+<nav id="main-nav">
+    <span>PotatoEMR 🥔</span>
+    <a href="#" @onclick="@(() => ShowPage(typeof(CalendarPageComponent), new Dictionary<string, object>{{ "test", 3 }}))">Calendar</a>    	
+    <a href="#" @onclick="@(() => ShowPage(typeof(PatientListsPageComponent), null))">Patient Lists</a>
+    <SearchPatientComponent OnPatientSelected="HandlePatientSelected"/>
+    <a href="#" @onclick="@(() => ShowPage(typeof(RegisterPatientPageComponent), null))">Register Patient</a>
+    <a href="#" @onclick="@(() => ShowPage(typeof(SettingsPageComponent), null))">Settings</a>
+</nav>
+
+@* this could also be if/else, idk if DynamicComponent is too clever *@
+<div id="main-content">
+    <DynamicComponent Type="@currentPageType" Parameters="@currentPageParameters" />
+</div>
+
+@code {
+    //shows patient lists by default on home screen
+    private Type currentPageType = typeof(PatientListsPageComponent);
+    private Dictionary<string, object>? currentPageParameters = null;
+    private void ShowPage(Type componentType, Dictionary<string, object>? parameters)
+    {
+        currentPageType = componentType;
+        currentPageParameters = parameters;
+    }
+
+    private void HandlePatientSelected(Patient patient)
+    {
+        ShowPage(typeof(PatientPageComponent), new Dictionary<string, object>{{ "pat", patient }});
+    }
+}

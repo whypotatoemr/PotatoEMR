@@ -1,0 +1,6 @@
+PotatoEMR.sln
+.vs/
+PotatoEMR.csproj.user
+bin/
+obj/
+PotatoUsers.db*

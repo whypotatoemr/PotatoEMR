@@ -1,0 +1,520 @@
+@rendermode InteractiveServer
+
+@if (pat != null)
+{
+    <div id="PatientSidebar">
+        @* Patient Photo or Placeholder *@
+        @if (!string.IsNullOrEmpty(patientPhotoSrc))
+        {
+            <img src="@patientPhotoSrc" alt="Patient photo" style="width:150px;height:150px;object-fit:cover;" />
+        }
+        else
+        {
+            <svg width="150px" height="150px">
+                <path fill="#ccc" d="M 104.68731,56.689353 C 102.19435,80.640493 93.104981,97.26875 74.372196,97.26875 55.639402,97.26875 46.988823,82.308034 44.057005,57.289941 41.623314,34.938838 55.639402,15.800152 74.372196,15.800152 c 18.732785,0 32.451944,18.493971 30.315114,40.889201 z"></path>
+                <path fill="#ccc" d="M 92.5675 89.6048 C 90.79484 93.47893 89.39893 102.4504 94.86478 106.9039 C 103.9375 114.2963 106.7064 116.4723 118.3117 118.9462 C 144.0432 124.4314 141.6492 138.1543 146.5244 149.2206 L 4.268444 149.1023 C 8.472223 138.6518 6.505799 124.7812 32.40051 118.387 C 41.80992 116.0635 45.66513 113.8823 53.58659 107.0158 C 58.52744 102.7329 57.52583 93.99267 56.43084 89.26926 C 52.49275 88.83011 94.1739 88.14054 92.5675 89.6048 z"></path>
+            </svg>
+        }
+        @* Name, Gender, Age *@
+        @foreach (HumanName name in pat.Name)
+        {
+            <p>@name.ToString()</p>
+        }
+        @* Name, Gender, Age *@
+        @foreach (HumanName name in pat.Name)
+        {
+            <p>@name.ToString()</p>
+        }
+        <span>@pat.Gender</span>
+        <span>@GetAge(pat.BirthDate)</span>
+        <span>@pat.BirthDate</span>
+        @* Responsible Provider *@
+        <div>
+            @if (doctorPhotoSrc != null)
+            {
+                <img src="@doctorPhotoSrc" alt="Doctor photo" style="width:50px;height:50px;object-fit:cover;" />
+            }
+            else
+            {
+                <svg width="50px" height="50px" viewBox="0 0 150 150">
+                    <path fill="#ccc" d="M 104.68731,56.689353 C 102.19435,80.640493 93.104981,97.26875 74.372196,97.26875 55.639402,97.26875 46.988823,82.308034 44.057005,57.289941 41.623314,34.938838 55.639402,15.800152 74.372196,15.800152 c 18.732785,0 32.451944,18.493971 30.315114,40.889201 z"></path>
+                    <path fill="#ccc" d="M 92.5675 89.6048 C 90.79484 93.47893 89.39893 102.4504 94.86478 106.9039 C 103.9375 114.2963 106.7064 116.4723 118.3117 118.9462 C 144.0432 124.4314 141.6492 138.1543 146.5244 149.2206 L 4.268444 149.1023 C 8.472223 138.6518 6.505799 124.7812 32.40051 118.387 C 41.80992 116.0635 45.66513 113.8823 53.58659 107.0158 C 58.52744 102.7329 57.52583 93.99267 56.43084 89.26926 C 52.49275 88.83011 94.1739 88.14054 92.5675 89.6048 z"></path>
+                </svg>
+            }
+            @if (doctor == null)
+            {
+                <p>Doctor: loading...</p>
+            }
+            else if (doctor.Name == null || doctor.Name.Count == 0)
+            {
+                <p>Unnamed Doctor</p>
+            }
+            else
+            {
+                foreach (var name in doctor.Name)
+                {
+                    <p>Doctor: @name.ToString()</p>
+                }
+            }
+        </div>
+        @* Allergies *@
+        <p>Allergies:</p>
+        @if (allergies == null)
+        {
+            <p>Loading...</p>
+        }
+        else if (allergies.Count == 0)
+        {
+            <p>None recorded</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var allergy in allergies)
+                {
+                    <li>@allergy</li>
+                }
+            </ul>
+        }
+        @* Admission Info *@
+        <p>Date Admitted: @admitDate</p>
+        <p>Reason Admitted: @admitReason</p>
+        @* Height and Weight *@
+        <p>Height: @heightDisplay</p>
+        <p>Weight: @weightDisplay</p>
+        @* Lab Results *@
+        <p>Lab Results:</p>
+        @if (labResults == null)
+        {
+            <p>Loading...</p>
+        }
+        else if (labResults.Count == 0)
+        {
+            <p>None recorded</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var lab in labResults)
+                {
+                    <li>@lab</li>
+                }
+            </ul>
+        }
+        @* Active Medications *@
+        <p>Active Medications:</p>
+        @if (medications == null)
+        {
+            <p>Loading...</p>
+        }
+        else if (medications.Count == 0)
+        {
+            <p>None recorded</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var med in medications)
+                {
+                    <li>@med</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Patient? pat { get; set; }
+
+    private string? patientPhotoSrc = null;
+    private List<string>? allergies;
+    private List<string>? medications;
+    private List<string>? labResults;
+    private string admitDate = "Loading...";
+    private string admitReason = "Loading...";
+    private string heightDisplay = "Loading...";
+    private string weightDisplay = "Loading...";
+    private Practitioner? doctor = null;
+    private string? doctorPhotoSrc = null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (pat != null && !string.IsNullOrEmpty(pat.Id))
+        {
+            var client = new FhirClient("https://r4.smarthealthit.org");
+            allergies = await LoadAllergies(client, pat.Id);
+            medications = await LoadMedications(client, pat.Id);
+            labResults = await LoadLabResults(client, pat.Id);
+            await LoadAdmissionInfo(client, pat.Id);
+            await LoadHeightAndWeight(client, pat.Id);
+            await LoadResponsibleDoctor(client, pat.Id, pat);
+            patientPhotoSrc = GetPatientPhotoSrc();
+            doctorPhotoSrc = GetDoctorPhotoSrc();
+        }
+    }
+
+    private async Task<List<string>> LoadAllergies(FhirClient client, string patientId)
+    {
+        try
+        {
+            var result = await GlobalFHIRconfig.client.SearchAsync<AllergyIntolerance>(new[] { $"patient={patientId}" });
+            if(result == null || result.Entry == null)
+            {
+                return null;
+            }
+            return result.Entry
+                .Select(e => (AllergyIntolerance)e.Resource)
+                .Where(a => a.Code != null)
+                .Select(a => a.Code.Text ?? a.Code.Coding?.FirstOrDefault()?.Display ?? "Unknown")
+                .ToList();
+        }
+        catch(Exception e)
+        {
+            Console.WriteLine("Error loading allergies: " + e.Message);
+            return null;
+        }
+
+    }
+
+    private async Task<List<string>> LoadMedications(FhirClient client, string patientId)
+    {
+        try
+        {
+            // Search for active MedicationRequests for the patient
+            var result = await GlobalFHIRconfig.client.SearchAsync<MedicationRequest>(
+                new[] { $"patient={patientId}", "status=active" });
+
+            if (result == null || result.Entry == null)
+            {
+                return null;
+            }
+
+            return result.Entry
+                .Select(e => (MedicationRequest)e.Resource)
+                .Select(mr =>
+                {
+                    // Try to get medication name from MedicationRequest
+                    if (mr.Medication is CodeableConcept cc)
+                        return cc.Text ?? cc.Coding?.FirstOrDefault()?.Display ?? "Unknown";
+                    return "Unknown";
+                })
+                .ToList();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error loading medications: " + e.Message);
+            return null;
+        }
+    }
+
+    private async Task<List<string>> LoadLabResults(FhirClient client, string patientId)
+    {
+        try
+        {
+            var result = await GlobalFHIRconfig.client.SearchAsync<Observation>(
+                new[] { $"patient={patientId}", "category=laboratory", "_sort=-date"});
+
+            if (result == null || result.Entry == null)
+            {
+                return null;
+            }
+
+            return result.Entry
+                .Select(e => (Observation)e.Resource)
+                .Select(obs =>
+                {
+                    if (!string.IsNullOrEmpty(obs.Code?.Text))
+                    {
+                        return obs.Code.Text;
+                    }
+                    else if (obs.Code?.Coding != null && obs.Code.Coding.Count > 0)
+                    {
+                        return obs.Code.Coding.First().Display ?? "Unknown";
+                    }
+                    return "Unknown";
+                })
+                .ToList();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error loading lab results: " + e.Message);
+            return null;
+        }
+    }
+
+    private async Task LoadAdmissionInfo(FhirClient client, string patientId)
+    {
+        try
+        {
+            // Get most recent inpatient encounter
+            var result = await GlobalFHIRconfig.client.SearchAsync<Encounter>(
+                new[] { $"patient={patientId}", "_sort=-date", "_count=1" });
+
+            if (result?.Entry?.Count > 0)
+            {
+                var encounter = (Encounter)result.Entry[0].Resource;
+                admitDate = encounter.Period?.Start ?? "Unknown";
+
+                if (encounter.ReasonCode != null && encounter.ReasonCode.Count > 0)
+                {
+                    var reason = encounter.ReasonCode.FirstOrDefault();
+                    if (reason != null)
+                    {
+                        if (!string.IsNullOrEmpty(reason.Text))
+                        {
+                            admitReason = reason.Text;
+                        }
+                        else if (reason.Coding != null && reason.Coding.Count > 0 && !string.IsNullOrEmpty(reason.Coding.First().Display))
+                        {
+                            admitReason = reason.Coding.First().Display;
+                        }
+                        else
+                        {
+                            admitReason = "Unknown";
+                        }
+                    }
+                    else
+                    {
+                        admitReason = "Unknown";
+                    }
+                }
+                else
+                {
+                    admitReason = "Unknown";
+                }
+            }
+            else
+            {
+                admitDate = "None";
+                admitReason = "None";
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error loading admission info: " + e.Message);
+            admitDate = "Error";
+            admitReason = "Error";
+        }
+    }
+
+    private async Task LoadHeightAndWeight(FhirClient client, string patientId)
+    {
+        try
+        {
+            // Height
+            var heightResult = await GlobalFHIRconfig.client.SearchAsync<Observation>(
+                new[] { $"patient={patientId}", "code=8302-2", "_sort=-date", "_count=1" });
+            if (heightResult?.Entry?.Count > 0)
+            {
+                var obs = (Observation)heightResult.Entry[0].Resource;
+                if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
+                {
+                    heightDisplay = $"{q.Value} {q.Unit}";
+                }
+                else
+                {
+                    heightDisplay = "Unknown";
+                }
+            }
+            else
+            {
+                heightDisplay = "None";
+            }
+
+            // Weight
+            var weightResult = await GlobalFHIRconfig.client.SearchAsync<Observation>(
+                new[] { $"patient={patientId}", "code=29463-7", "_sort=-date", "_count=1" });
+            if (weightResult?.Entry?.Count > 0)
+            {
+                var obs = (Observation)weightResult.Entry[0].Resource;
+                if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
+                {
+                    weightDisplay = $"{q.Value} {q.Unit}";
+                }
+                else
+                {
+                    weightDisplay = "Unknown";
+                }
+            }
+            else
+            {
+                weightDisplay = "None";
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error loading height/weight: " + e.Message);
+            heightDisplay = "Error";
+            weightDisplay = "Error";
+        }
+    }
+
+    private async Task LoadResponsibleDoctor(FhirClient client, string patientId, Patient patient)
+    {
+        /*
+        * go through encounters by date descending. 
+         * check first for attending physician.
+         * if none found, go through again and check for any physician.
+         * if none found, check patient resource for general practitioner
+         */
+                                try
+            {
+                var result = await GlobalFHIRconfig.client.SearchAsync<Encounter>(
+                    new[] { $"patient={patientId}", "_sort=-date"});
+
+                Practitioner? foundPractitioner = null;
+
+                if (result?.Entry != null)
+                {
+                    // 1. Look for attending physician
+                    foreach (var entry in result.Entry)
+                    {
+                        var encounter = (Encounter)entry.Resource;
+                        var attending = encounter.Participant?
+                            .FirstOrDefault(p =>
+                                p.Type != null &&
+                                p.Type.Any(t =>
+                                    t.Coding != null &&
+                                    t.Coding.Any(c =>
+                                        c.Code == "ATND" &&
+                                        (c.System == null || c.System == "http://terminology.hl7.org/CodeSystem/v3-ParticipationType")
+                                    )
+                                ) &&
+                                p.Individual != null &&
+                                p.Individual.Reference != null &&
+                                p.Individual.Reference.StartsWith("Practitioner/")
+                            );
+                        if (attending != null)
+                        {
+                            var practitionerId = attending.Individual.Reference.Split('/').Last();
+                            foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
+                            break;
+                        }
+                    }
+
+                    // 2. If not found, look for any physician
+                    if (foundPractitioner == null)
+                    {
+                        foreach (var entry in result.Entry)
+                        {
+                            var encounter = (Encounter)entry.Resource;
+                            var anyPhysician = encounter.Participant?
+                                .FirstOrDefault(p =>
+                                    p.Individual != null &&
+                                    p.Individual.Reference != null &&
+                                    p.Individual.Reference.StartsWith("Practitioner/")
+                                );
+                            if (anyPhysician != null)
+                            {
+                                var practitionerId = anyPhysician.Individual.Reference.Split('/').Last();
+                                foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // 3. If still not found, check Patient.GeneralPractitioner
+                if (foundPractitioner == null && patient.GeneralPractitioner != null && patient.GeneralPractitioner.Count > 0)
+                {
+                    var gpRef = patient.GeneralPractitioner.FirstOrDefault(r => r.Reference != null && r.Reference.StartsWith("Practitioner/"));
+                    if (gpRef != null)
+                    {
+                        var practitionerId = gpRef.Reference.Split('/').Last();
+                        foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
+                    }
+                }
+
+                // Set doctorName
+                if (foundPractitioner != null && foundPractitioner.Name != null && foundPractitioner.Name.Count > 0)
+                {
+                    doctor = foundPractitioner;
+                }
+                else
+                {
+                    //want to show we checked server and found no doctor
+                    //but it's already null, so can't indicate no doctor found by setting to null
+                    //instead create a new doctor named none (maybe bad idea)
+                    doctor = new Practitioner();
+                    doctor.Name.Add(new HumanName().WithGiven("None"));
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error loading responsible doctor: " + e.Message);
+            }
+    }
+
+    private string GetAge(string birthDate)
+    {
+        if (DateTime.TryParse(birthDate, out var dob))
+        {
+            var today = DateTime.Today;
+            int years = today.Year - dob.Year;
+            int months = today.Month - dob.Month;
+            int days = today.Day - dob.Day;
+
+            if (days < 0)
+            {
+                months--;
+                days += DateTime.DaysInMonth(today.Year, (today.Month == 1 ? 12 : today.Month - 1));
+            }
+            if (months < 0)
+            {
+                years--;
+                months += 12;
+            }
+
+            if(years < 1)
+            {
+                return $"{months}m/{days}d,";
+            }
+            else if(years < 10)
+            {
+                return $"{years}y/{months}m,";
+            }
+            else
+            {
+                return $"{years}y.o.,";
+            }
+        }
+        return "Unknown";
+    }
+
+    private string? GetPatientPhotoSrc()
+    {
+        if (pat?.Photo != null && pat.Photo.Count > 0)
+        {
+            var photo = pat.Photo.First();
+            if (!string.IsNullOrEmpty(photo.Url))
+            {
+                return photo.Url;
+            }
+            else if (photo.Data != null && photo.Data.Length > 0 && !string.IsNullOrEmpty(photo.ContentType))
+            {
+                var base64 = Convert.ToBase64String(photo.Data);
+                return $"data:{photo.ContentType};base64,{base64}";
+            }
+        }
+        return null;
+    }
+
+    private string? GetDoctorPhotoSrc()
+    {
+        if (doctor?.Photo != null && doctor.Photo.Count > 0)
+        {
+            var photo = doctor.Photo.First();
+            if (!string.IsNullOrEmpty(photo.Url))
+            {
+                return photo.Url;
+            }
+            else if (photo.Data != null && photo.Data.Length > 0 && !string.IsNullOrEmpty(photo.ContentType))
+            {
+                var base64 = Convert.ToBase64String(photo.Data);
+                return $"data:{photo.ContentType};base64,{base64}";
+            }
+        }
+        return null;
+    }
+}

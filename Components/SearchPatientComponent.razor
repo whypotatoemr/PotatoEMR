@@ -1,0 +1,66 @@
+@rendermode InteractiveServer
+
+<span>
+    <input @bind="searchInput" @oninput="GetPatient" placeholder="Search patient" />
+    @foreach(var p in patientList.Entry)
+    {
+        Patient pat_entry = (Patient)p.Resource;
+        <div>
+            <button @onclick="@(() => SelectPatient(pat_entry))">
+                @foreach(HumanName pat_name in pat_entry.Name)
+                {
+                    //we could go through pat_name.Given etc to display manually
+                    //but for now its ToString is fine
+                    <span>@pat_name.ToString()</span>
+                }
+            </button>
+        </div>
+    } 
+</span>
+
+@code {
+    //when you click patient from search results, clear list and
+    //run function passed into component that takes patient argument
+
+    [Parameter]
+    public EventCallback<Patient> OnPatientSelected { get; set; }
+    private string searchInput = "";
+    private async Task SelectPatient(Patient pat)
+    {
+        searchInput = "";
+        await OnPatientSelected.InvokeAsync(pat);
+        patientList = new Bundle();
+        StateHasChanged();
+    }
+
+    private Bundle patientList = new Bundle();
+    protected async Task GetPatient(ChangeEventArgs e)
+    {
+        string input = e.Value?.ToString() ?? "";
+        if(input == "")
+        {
+            patientList = new Bundle();
+            return;
+        }
+        if (GlobalFHIRconfig.client == null)
+        {
+            return;
+        }
+        try
+        {
+            var result = await GlobalFHIRconfig.client.SearchAsync<Patient>(new string[] { $"name={input}", "_count=10" });
+            if(result != null)
+            {
+                patientList = result;
+            }
+            else
+            {
+                Console.WriteLine("received null");
+            }
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine("Exception on read patient " + ex);
+        }
+    }
+}

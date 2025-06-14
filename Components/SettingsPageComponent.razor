@@ -1,0 +1,68 @@
+@using Microsoft.EntityFrameworkCore
+@using PotatoEMR.Data
+@inject PotatoUsersDbContext DbContext
+
+<p>Settings</p>
+
+<h3>Users</h3>
+@if (users == null)
+{
+    <p>Loading users...</p>
+}
+else if (!users.Any())
+{
+    <p>No users found.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Preferred Color</th>
+                <th>Identifier System</th>
+                <th>Identifier Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.Username</td>
+                    <td>@user.PreferredColor</td>
+                    <td>@user.practitionerIdentifier?.System</td>
+                    <td>@user.practitionerIdentifier?.Value</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h3>Add New User</h3>
+<EditForm Model="newUser" OnValidSubmit="AddUser">
+    <InputText @bind-Value="newUser.Username" placeholder="Username" />
+    <InputText @bind-Value="newUser.Password" placeholder="Password" type="password" />
+    <InputText @bind-Value="newUser.PreferredColor" placeholder="Preferred Color" />
+    <InputText @bind-Value="newUser.practitionerIdentifier.System" placeholder="Identifier System" />
+    <InputText @bind-Value="newUser.practitionerIdentifier.Value" placeholder="Identifier Value" />
+    <button type="submit">Add User</button>
+</EditForm>
+
+@code {
+    private List<User>? users;
+    private User newUser = new User();
+
+    protected override async Task OnInitializedAsync()
+    {
+        users = await DbContext.Users.ToListAsync();
+    }
+
+    private async Task AddUser()
+    {
+        DbContext.Users.Add(newUser);
+        await DbContext.SaveChangesAsync();
+        users = await DbContext.Users.ToListAsync();
+        newUser = new User();
+        StateHasChanged();
+    }
+}
