@@ -30,7 +30,6 @@
         searchInput = "";
         await OnPatientSelected.InvokeAsync(pat);
         patientList = new Bundle();
-        StateHasChanged();
     }
 
     private Bundle patientList = new Bundle();
@@ -60,7 +59,7 @@
         }
         catch(Exception ex)
         {
-            Console.WriteLine("Exception on read patient " + ex);
+            Console.WriteLine("SearchPatientComponent GetPatient Exception on read patient " + ex);
         }
     }
 }

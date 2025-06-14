@@ -128,9 +128,9 @@
     public Patient? pat { get; set; }
 
     private string? patientPhotoSrc = null;
-    private List<string>? allergies;
-    private List<string>? medications;
-    private List<string>? labResults;
+    private List<string>? allergies = null;
+    private List<string>? medications = null;
+    private List<string>? labResults = null;
     private string admitDate = "Loading...";
     private string admitReason = "Loading...";
     private string heightDisplay = "Loading...";
@@ -140,6 +140,21 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        //When clicking a new patient from results, fields wont reset until FHIR server returns data
+        //which could take seconds
+        //as same component is reused for new patient, will have old fields until patient data comes back
+        //so reset fields immediately when choosing new patient
+        patientPhotoSrc = null;
+        allergies = null;
+        medications = null;
+        labResults = null;
+        admitDate = "Loading...";
+        admitReason = "Loading...";
+        heightDisplay = "Loading...";
+        weightDisplay = "Loading...";
+        doctor = null;
+        doctorPhotoSrc = null;
+
         if (pat != null && !string.IsNullOrEmpty(pat.Id))
         {
             var client = new FhirClient("https://r4.smarthealthit.org");
