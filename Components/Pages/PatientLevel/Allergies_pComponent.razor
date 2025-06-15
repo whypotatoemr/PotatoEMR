@@ -1,1 +1,68 @@
-﻿<p>Allergies Component </p>
+﻿@if (Allergies == null)
+{
+    <p>Loading allergies...</p>
+}
+else if (Allergies.Count == 0)
+{
+    <p>No allergies recorded.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Allergy</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var allergy in Allergies)
+            {
+                <tr>
+                    <td>allergy @allergy</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter]
+    public Bundle? AllergyBundle { get; set; }
+
+    [Parameter]
+    public string? PatientId { get; set; }
+
+    private List<AllergyIntolerance>? Allergies { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AllergyBundle != null)
+        {
+            Allergies = AllergyBundle.Entry
+                .Where(e => e.Resource is AllergyIntolerance)
+                .Select(e => (AllergyIntolerance)e.Resource)
+                .ToList();
+        }
+        else if (!string.IsNullOrEmpty(PatientId))
+        {
+            try
+            {
+                Allergies = null;
+                var bundle = await GlobalFHIRconfig.client.SearchAsync<AllergyIntolerance>(new[] { $"patient={PatientId}" });
+                Allergies = bundle?.Entry
+                    .Where(e => e.Resource is AllergyIntolerance)
+                    .Select(e => (AllergyIntolerance)e.Resource)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Allergies_pComponent error: {ex.Message}");
+                Allergies = null;
+            }
+    }
+        else
+        {
+            Allergies = null;
+        }
+    }
+}

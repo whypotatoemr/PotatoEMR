@@ -123,27 +123,34 @@
         }
     </div>
     <nav>
-        <a href="#" @onclick="@(() => ShowPatientPage(typeof(Allergies_pComponent), null))">Allergies</a>
-        <a href="#" @onclick="@(() => ShowPatientPage(typeof(Immunizations_pComponent), null))">Immunizations</a>
-        <a href="#" @onclick="@(() => ShowPatientPage(typeof(ProblemList_pComponent), null))">Problem List</a>
+        <a href="#" @onclick="@(() => ClickPatientPage(typeof(Allergies_pComponent)))">Allergies</a>
+        <a href="#" @onclick="@(() => ClickPatientPage(typeof(Immunizations_pComponent)))">Immunizations</a>
+        <a href="#" @onclick="@(() => ClickPatientPage(typeof(ProblemList_pComponent)))">Problem List</a>
     </nav>
     <div id="patient-content">
-        <DynamicComponent Type="@patientPageType" Parameters="@patientPageParameters" />
+        @if(patientPageType != null)
+        {
+            //patient page starts null, so its server request can be included in patient page initial batch
+            //clicking ShowPatientPage() will not include request, so page will be responsible for making request
+            //so patient pages have to handle either given parameters, or null parameters for their own request
+            <DynamicComponent Type="@patientPageType" Parameters="@patientPageParameters" />            
+        }
     </div>
 }
 
 @code {
-    //shows allergy by default on home screen
-    private Type patientPageType = typeof(Allergies_pComponent);
-    private Dictionary<string, object>? patientPageParameters = null;
-    private void ShowPatientPage(Type componentType, Dictionary<string, object>? parameters)
-    {
-        patientPageType = componentType;
-        patientPageParameters = parameters;
-    }
-
     [Parameter]
     public Patient? pat { get; set; }
+
+    //shows allergy by default on patient page
+    private Type? patientPageType = null;
+    private Dictionary<string, object>? patientPageParameters = null;
+    private void ClickPatientPage(Type componentType)
+    {
+        // when you click page, the page makes new request of its own using patient id
+        patientPageType = componentType;
+        patientPageParameters = new Dictionary<string, object> { { "PatientId", pat?.Id ?? string.Empty } };
+    }
 
     private string? patientPhotoSrc = null;
     private List<string>? allergies = null;
@@ -204,6 +211,9 @@
             if (response?.Entry != null && response.Entry.Count >= 6)
             {
                 allergies = ProcessAllergiesResponse(response.Entry[0]);
+                patientPageParameters = new Dictionary<string, object> { ["AllergyBundle"] = response.Entry[0].Resource };
+                patientPageType = typeof(Allergies_pComponent); //by default allergies page
+                //pass allergies in here, to include request in batch on initial patiend load
                 medications = ProcessMedicationsResponse(response.Entry[1]);
                 labResults = ProcessLabResultsResponse(response.Entry[2]);
                 doctor = ProcessGeneralPractitioner(response.Entry[3]); //encounter participant also sets doctor
@@ -374,7 +384,7 @@
             }
 
             // 3. If still not found, check Patient.GeneralPractitioner
-            if (foundPractitioner == null && pat.GeneralPractitioner != null && pat.GeneralPractitioner.Count > 0)
+            if (foundPractitioner == null && pat?.GeneralPractitioner != null && pat.GeneralPractitioner.Count > 0)
             {
                 var gpRef = pat.GeneralPractitioner.FirstOrDefault(r => r.Reference != null && r.Reference.StartsWith("Practitioner/"));
                 if (gpRef != null)
@@ -403,8 +413,16 @@
             if (entry.Resource is Bundle heightBundle && heightBundle.Entry != null && heightBundle.Entry.Count > 0)
             {
                 var obs = (Observation)heightBundle.Entry[0].Resource;
-                if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
+                if (obs.Value is Quantity q && q.Value != null)
                 {
+                    if (q.Unit != null && q.Unit.Trim().ToLower() == "cm")
+                    {
+                        var cm = Convert.ToDecimal(q.Value);
+                        var totalInches = cm / 2.54m;
+                        var feet = (int)(totalInches / 12);
+                        var inches = (int)Math.Round(totalInches % 12);
+                        return $"{cm}cm ({feet}' {inches}'')";
+                    }
                     return $"{Math.Round(Convert.ToDecimal(q.Value), 1)} {q.Unit}";
                 }
             }
