@@ -5,6 +5,7 @@ namespace PotatoEMR
 {
     public static class GlobalFHIRconfig
     {
+        //public const string ServerURL = "https://server.fire.ly";
         public const string ServerURL = "http://hapi.fhir.org/baseR4";
         public static readonly FhirClient client = new FhirClient(ServerURL);
     }

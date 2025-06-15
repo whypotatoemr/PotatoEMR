@@ -157,132 +157,154 @@
 
         if (pat != null && !string.IsNullOrEmpty(pat.Id))
         {
-            var client = new FhirClient("https://r4.smarthealthit.org");
-            allergies = await LoadAllergies(client, pat.Id);
-            medications = await LoadMedications(client, pat.Id);
-            labResults = await LoadLabResults(client, pat.Id);
-            await LoadAdmissionInfo(client, pat.Id);
-            await LoadHeightAndWeight(client, pat.Id);
-            await LoadResponsibleDoctor(client, pat.Id, pat);
+            await LoadAllPatientDataBatch(pat.Id);
             patientPhotoSrc = GetPatientPhotoSrc();
             doctorPhotoSrc = GetDoctorPhotoSrc();
         }
     }
 
-    private async Task<List<string>> LoadAllergies(FhirClient client, string patientId)
+    private async Task LoadAllPatientDataBatch(string patientId)
     {
         try
         {
-            var result = await GlobalFHIRconfig.client.SearchAsync<AllergyIntolerance>(new[] { $"patient={patientId}" });
-            if (result == null || result.Entry == null)
+            var client = GlobalFHIRconfig.client;
+            var builder = new TransactionBuilder(client.Endpoint.ToString(), Bundle.BundleType.Batch);
+
+            // Add all search requests to the batch
+            builder.Search(new SearchParams().Where($"patient={patientId}"), "AllergyIntolerance");
+            builder.Search(new SearchParams().Where($"patient={patientId}").Where("status=active"), "MedicationRequest");
+            builder.Search(new SearchParams().Where($"patient={patientId}").Where("category=laboratory").OrderBy("-date"), "Observation");
+            builder.Search(new SearchParams().Where($"patient={patientId}").OrderBy("-date"), "Encounter");
+            builder.Search(new SearchParams().Where($"patient={patientId}").Where("code=8302-2").OrderBy("-date").LimitTo(1), "Observation"); // Height
+            builder.Search(new SearchParams().Where($"patient={patientId}").Where("code=29463-7").OrderBy("-date").LimitTo(1), "Observation"); // Weight
+
+            var batchBundle = builder.ToBundle();
+            var response = await client.TransactionAsync(batchBundle);
+
+            // Process responses in order
+            if (response?.Entry != null && response.Entry.Count >= 6)
             {
-                return null;
+                // Process Allergies (index 0)
+                allergies = ProcessAllergiesResponse(response.Entry[0]);
+
+                // Process Medications (index 1)
+                medications = ProcessMedicationsResponse(response.Entry[1]);
+
+                // Process Lab Results (index 2)
+                labResults = ProcessLabResultsResponse(response.Entry[2]);
+
+                // Process Encounters for admission info and doctor (index 3)
+                await ProcessEncountersResponse(response.Entry[3], patientId);
+
+                // Process Height (index 4)
+                heightDisplay = ProcessHeightResponse(response.Entry[4]);
+
+                // Process Weight (index 5)
+                weightDisplay = ProcessWeightResponse(response.Entry[5]);
             }
-            return result.Entry
-                .Select(e => (AllergyIntolerance)e.Resource)
-                .Where(a => a.Code != null)
-                .Select(a => a.Code.Text ?? a.Code.Coding?.FirstOrDefault()?.Display ?? "Unknown")
-                .ToList();
         }
         catch (Exception e)
         {
-            Console.WriteLine("Error loading allergies: " + e.Message);
-            return null;
+            Console.WriteLine("Error loading patient data batch: " + e.Message);
+            // Set error states
+            allergies = new List<string>();
+            medications = new List<string>();
+            labResults = new List<string>();
+            admitDate = "Error";
+            admitReason = "Error";
+            heightDisplay = "Error";
+            weightDisplay = "Error";
         }
-
     }
 
-    private async Task<List<string>> LoadMedications(FhirClient client, string patientId)
+    private List<string> ProcessAllergiesResponse(Bundle.EntryComponent entry)
     {
         try
         {
-            // Search for active MedicationRequests for the patient
-            var result = await GlobalFHIRconfig.client.SearchAsync<MedicationRequest>(
-                new[] { $"patient={patientId}", "status=active" });
-
-            if (result == null || result.Entry == null)
+            if (entry.Resource is Bundle allergyBundle && allergyBundle.Entry != null)
             {
-                return null;
+                return allergyBundle.Entry
+                    .Select(e => (AllergyIntolerance)e.Resource)
+                    .Where(a => a.Code != null)
+                    .Select(a => a.Code.Text ?? a.Code.Coding?.FirstOrDefault()?.Display ?? "Unknown")
+                    .ToList();
             }
-
-            return result.Entry
-                .Select(e => (MedicationRequest)e.Resource)
-                .Select(mr =>
-                {
-                    // Try to get medication name from MedicationRequest
-                    if (mr.Medication is CodeableConcept cc)
-                        return cc.Text ?? cc.Coding?.FirstOrDefault()?.Display ?? "Unknown";
-                    return "Unknown";
-                })
-                .ToList();
         }
         catch (Exception e)
         {
-            Console.WriteLine("Error loading medications: " + e.Message);
-            return null;
+            Console.WriteLine("Error processing allergies: " + e.Message);
         }
+        return new List<string>();
     }
 
-    private async Task<List<string>> LoadLabResults(FhirClient client, string patientId)
+    private List<string> ProcessMedicationsResponse(Bundle.EntryComponent entry)
     {
         try
         {
-            var result = await GlobalFHIRconfig.client.SearchAsync<Observation>(
-                new[] { $"patient={patientId}", "category=laboratory", "_sort=-date" });
-
-            if (result == null || result.Entry == null)
+            if (entry.Resource is Bundle medicationBundle && medicationBundle.Entry != null)
             {
-                return null;
+                return medicationBundle.Entry
+                    .Select(e => (MedicationRequest)e.Resource)
+                    .Select(mr =>
+                    {
+                        if (mr.Medication is CodeableConcept cc)
+                            return cc.Text ?? cc.Coding?.FirstOrDefault()?.Display ?? "Unknown";
+                        return "Unknown";
+                    })
+                    .ToList();
             }
-
-            return result.Entry
-                .Select(e => (Observation)e.Resource)
-                .Select(obs =>
-                {
-                    if (!string.IsNullOrEmpty(obs.Code?.Text))
-                    {
-                        return obs.Code.Text;
-                    }
-                    else if (obs.Code?.Coding != null && obs.Code.Coding.Count > 0)
-                    {
-                        return obs.Code.Coding.First().Display ?? "Unknown";
-                    }
-                    return "Unknown";
-                })
-                .ToList();
         }
         catch (Exception e)
         {
-            Console.WriteLine("Error loading lab results: " + e.Message);
-            return null;
+            Console.WriteLine("Error processing medications: " + e.Message);
         }
+        return new List<string>();
     }
 
-    private async Task LoadAdmissionInfo(FhirClient client, string patientId)
+    private List<string> ProcessLabResultsResponse(Bundle.EntryComponent entry)
     {
         try
         {
-            // Get most recent inpatient encounter
-            var result = await GlobalFHIRconfig.client.SearchAsync<Encounter>(
-                new[] { $"patient={patientId}", "_sort=-date", "_count=1" });
-
-            if (result?.Entry?.Count > 0)
+            if (entry.Resource is Bundle labBundle && labBundle.Entry != null)
             {
-                var encounter = (Encounter)result.Entry[0].Resource;
-                admitDate = encounter.Period?.Start ?? "Unknown";
-
-                if (encounter.ReasonCode != null && encounter.ReasonCode.Count > 0)
-                {
-                    var reason = encounter.ReasonCode.FirstOrDefault();
-                    if (reason != null)
+                return labBundle.Entry
+                    .Select(e => (Observation)e.Resource)
+                    .Select(obs =>
                     {
-                        if (!string.IsNullOrEmpty(reason.Text))
+                        if (!string.IsNullOrEmpty(obs.Code?.Text))
+                            return obs.Code.Text;
+                        else if (obs.Code?.Coding != null && obs.Code.Coding.Count > 0)
+                            return obs.Code.Coding.First().Display ?? "Unknown";
+                        return "Unknown";
+                    })
+                    .ToList();
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error processing lab results: " + e.Message);
+        }
+        return new List<string>();
+    }
+
+    private async Task ProcessEncountersResponse(Bundle.EntryComponent entry, string patientId)
+    {
+        try
+        {
+            if (entry.Resource is Bundle encounterBundle && encounterBundle.Entry != null)
+            {
+                // Process admission info from first encounter
+                if (encounterBundle.Entry.Count > 0)
+                {
+                    var encounter = (Encounter)encounterBundle.Entry[0].Resource;
+                    admitDate = encounter.Period?.Start ?? "Unknown";
+
+                    if (encounter.ReasonCode != null && encounter.ReasonCode.Count > 0)
+                    {
+                        var reason = encounter.ReasonCode.FirstOrDefault();
+                        if (reason != null)
                         {
-                            admitReason = reason.Text;
-                        }
-                        else if (reason.Coding != null && reason.Coding.Count > 0 && !string.IsNullOrEmpty(reason.Coding.First().Display))
-                        {
-                            admitReason = reason.Coding.First().Display;
+                            admitReason = reason.Text ?? reason.Coding?.FirstOrDefault()?.Display ?? "Unknown";
                         }
                         else
                         {
@@ -296,144 +318,79 @@
                 }
                 else
                 {
-                    admitReason = "Unknown";
+                    admitDate = "None";
+                    admitReason = "None";
                 }
-            }
-            else
-            {
-                admitDate = "None";
-                admitReason = "None";
+
+                // Process doctor info from encounters
+                await ProcessDoctorFromEncounters(encounterBundle.Entry, patientId);
             }
         }
         catch (Exception e)
         {
-            Console.WriteLine("Error loading admission info: " + e.Message);
+            Console.WriteLine("Error processing encounters: " + e.Message);
             admitDate = "Error";
             admitReason = "Error";
         }
     }
 
-    private async Task LoadHeightAndWeight(FhirClient client, string patientId)
+    private async Task ProcessDoctorFromEncounters(IList<Bundle.EntryComponent> encounters, string patientId)
     {
         try
         {
-            // Height
-            var heightResult = await GlobalFHIRconfig.client.SearchAsync<Observation>(
-                new[] { $"patient={patientId}", "code=8302-2", "_sort=-date", "_count=1" });
-            if (heightResult?.Entry?.Count > 0)
-            {
-                var obs = (Observation)heightResult.Entry[0].Resource;
-                if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
-                {
-                    heightDisplay = $"{q.Value} {q.Unit}";
-                }
-                else
-                {
-                    heightDisplay = "Unknown";
-                }
-            }
-            else
-            {
-                heightDisplay = "None";
-            }
-
-            // Weight
-            var weightResult = await GlobalFHIRconfig.client.SearchAsync<Observation>(
-                new[] { $"patient={patientId}", "code=29463-7", "_sort=-date", "_count=1" });
-            if (weightResult?.Entry?.Count > 0)
-            {
-                var obs = (Observation)weightResult.Entry[0].Resource;
-                if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
-                {
-                    weightDisplay = $"{q.Value} {q.Unit}";
-                }
-                else
-                {
-                    weightDisplay = "Unknown";
-                }
-            }
-            else
-            {
-                weightDisplay = "None";
-            }
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine("Error loading height/weight: " + e.Message);
-            heightDisplay = "Error";
-            weightDisplay = "Error";
-        }
-    }
-
-    private async Task LoadResponsibleDoctor(FhirClient client, string patientId, Patient patient)
-    {
-        /*
-        * go through encounters by date descending.
-         * check first for attending physician.
-         * if none found, go through again and check for any physician.
-         * if none found, check patient resource for general practitioner
-         */
-        try
-        {
-            var result = await GlobalFHIRconfig.client.SearchAsync<Encounter>(
-                new[] { $"patient={patientId}", "_sort=-date" });
-
             Practitioner? foundPractitioner = null;
 
-            if (result?.Entry != null)
+            // 1. Look for attending physician
+            foreach (var entry in encounters)
             {
-                // 1. Look for attending physician
-                foreach (var entry in result.Entry)
+                var encounter = (Encounter)entry.Resource;
+                var attending = encounter.Participant?
+                    .FirstOrDefault(p =>
+                        p.Type != null &&
+                        p.Type.Any(t =>
+                            t.Coding != null &&
+                            t.Coding.Any(c =>
+                                c.Code == "ATND" &&
+                                (c.System == null || c.System == "http://terminology.hl7.org/CodeSystem/v3-ParticipationType")
+                            )
+                        ) &&
+                        p.Individual != null &&
+                        p.Individual.Reference != null &&
+                        p.Individual.Reference.StartsWith("Practitioner/")
+                    );
+                if (attending != null)
+                {
+                    var practitionerId = attending.Individual.Reference.Split('/').Last();
+                    foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
+                    break;
+                }
+            }
+
+            // 2. If not found, look for any physician
+            if (foundPractitioner == null)
+            {
+                foreach (var entry in encounters)
                 {
                     var encounter = (Encounter)entry.Resource;
-                    var attending = encounter.Participant?
+                    var anyPhysician = encounter.Participant?
                         .FirstOrDefault(p =>
-                            p.Type != null &&
-                            p.Type.Any(t =>
-                                t.Coding != null &&
-                                t.Coding.Any(c =>
-                                    c.Code == "ATND" &&
-                                    (c.System == null || c.System == "http://terminology.hl7.org/CodeSystem/v3-ParticipationType")
-                                )
-                            ) &&
                             p.Individual != null &&
                             p.Individual.Reference != null &&
                             p.Individual.Reference.StartsWith("Practitioner/")
                         );
-                    if (attending != null)
+                    if (anyPhysician != null)
                     {
-                        var practitionerId = attending.Individual.Reference.Split('/').Last();
+                        var practitionerId = anyPhysician.Individual.Reference.Split('/').Last();
                         foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
                         break;
-                    }
-                }
-
-                // 2. If not found, look for any physician
-                if (foundPractitioner == null)
-                {
-                    foreach (var entry in result.Entry)
-                    {
-                        var encounter = (Encounter)entry.Resource;
-                        var anyPhysician = encounter.Participant?
-                            .FirstOrDefault(p =>
-                                p.Individual != null &&
-                                p.Individual.Reference != null &&
-                                p.Individual.Reference.StartsWith("Practitioner/")
-                            );
-                        if (anyPhysician != null)
-                        {
-                            var practitionerId = anyPhysician.Individual.Reference.Split('/').Last();
-                            foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
-                            break;
-                        }
                     }
                 }
             }
 
             // 3. If still not found, check Patient.GeneralPractitioner
-            if (foundPractitioner == null && patient.GeneralPractitioner != null && patient.GeneralPractitioner.Count > 0)
+            if (foundPractitioner == null && pat.GeneralPractitioner != null && pat.GeneralPractitioner.Count > 0)
             {
-                var gpRef = patient.GeneralPractitioner.FirstOrDefault(r => r.Reference != null && r.Reference.StartsWith("Practitioner/"));
+                var gpRef = pat.GeneralPractitioner.FirstOrDefault(r => r.Reference != null && r.Reference.StartsWith("Practitioner/"));
                 if (gpRef != null)
                 {
                     var practitionerId = gpRef.Reference.Split('/').Last();
@@ -441,24 +398,61 @@
                 }
             }
 
-            // Set doctorName
+            // Set doctor
             if (foundPractitioner != null && foundPractitioner.Name != null && foundPractitioner.Name.Count > 0)
             {
                 doctor = foundPractitioner;
             }
             else
             {
-                //want to show we checked server and found no doctor
-                //but it's already null, so can't indicate no doctor found by setting to null
-                //instead create a new doctor named none (maybe bad idea)
                 doctor = new Practitioner();
                 doctor.Name.Add(new HumanName().WithGiven("None"));
             }
         }
         catch (Exception e)
         {
-            Console.WriteLine("Error loading responsible doctor: " + e.Message);
+            Console.WriteLine("Error processing doctor from encounters: " + e.Message);
         }
+    }
+
+    private string ProcessHeightResponse(Bundle.EntryComponent entry)
+    {
+        try
+        {
+            if (entry.Resource is Bundle heightBundle && heightBundle.Entry != null && heightBundle.Entry.Count > 0)
+            {
+                var obs = (Observation)heightBundle.Entry[0].Resource;
+                if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
+                {
+                    return $"{q.Value} {q.Unit}";
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error processing height: " + e.Message);
+        }
+        return "None";
+    }
+
+    private string ProcessWeightResponse(Bundle.EntryComponent entry)
+    {
+        try
+        {
+            if (entry.Resource is Bundle weightBundle && weightBundle.Entry != null && weightBundle.Entry.Count > 0)
+            {
+                var obs = (Observation)weightBundle.Entry[0].Resource;
+                if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
+                {
+                    return $"{q.Value} {q.Unit}";
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error processing weight: " + e.Message);
+        }
+        return "None";
     }
 
     private string GetAge(string birthDate)
