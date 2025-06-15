@@ -174,7 +174,7 @@
         try
         {
             var result = await GlobalFHIRconfig.client.SearchAsync<AllergyIntolerance>(new[] { $"patient={patientId}" });
-            if(result == null || result.Entry == null)
+            if (result == null || result.Entry == null)
             {
                 return null;
             }
@@ -184,7 +184,7 @@
                 .Select(a => a.Code.Text ?? a.Code.Coding?.FirstOrDefault()?.Display ?? "Unknown")
                 .ToList();
         }
-        catch(Exception e)
+        catch (Exception e)
         {
             Console.WriteLine("Error loading allergies: " + e.Message);
             return null;
@@ -228,7 +228,7 @@
         try
         {
             var result = await GlobalFHIRconfig.client.SearchAsync<Observation>(
-                new[] { $"patient={patientId}", "category=laboratory", "_sort=-date"});
+                new[] { $"patient={patientId}", "category=laboratory", "_sort=-date" });
 
             if (result == null || result.Entry == null)
             {
@@ -368,97 +368,97 @@
     private async Task LoadResponsibleDoctor(FhirClient client, string patientId, Patient patient)
     {
         /*
-        * go through encounters by date descending. 
+        * go through encounters by date descending.
          * check first for attending physician.
          * if none found, go through again and check for any physician.
          * if none found, check patient resource for general practitioner
          */
-                                try
+        try
+        {
+            var result = await GlobalFHIRconfig.client.SearchAsync<Encounter>(
+                new[] { $"patient={patientId}", "_sort=-date" });
+
+            Practitioner? foundPractitioner = null;
+
+            if (result?.Entry != null)
             {
-                var result = await GlobalFHIRconfig.client.SearchAsync<Encounter>(
-                    new[] { $"patient={patientId}", "_sort=-date"});
-
-                Practitioner? foundPractitioner = null;
-
-                if (result?.Entry != null)
+                // 1. Look for attending physician
+                foreach (var entry in result.Entry)
                 {
-                    // 1. Look for attending physician
+                    var encounter = (Encounter)entry.Resource;
+                    var attending = encounter.Participant?
+                        .FirstOrDefault(p =>
+                            p.Type != null &&
+                            p.Type.Any(t =>
+                                t.Coding != null &&
+                                t.Coding.Any(c =>
+                                    c.Code == "ATND" &&
+                                    (c.System == null || c.System == "http://terminology.hl7.org/CodeSystem/v3-ParticipationType")
+                                )
+                            ) &&
+                            p.Individual != null &&
+                            p.Individual.Reference != null &&
+                            p.Individual.Reference.StartsWith("Practitioner/")
+                        );
+                    if (attending != null)
+                    {
+                        var practitionerId = attending.Individual.Reference.Split('/').Last();
+                        foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
+                        break;
+                    }
+                }
+
+                // 2. If not found, look for any physician
+                if (foundPractitioner == null)
+                {
                     foreach (var entry in result.Entry)
                     {
                         var encounter = (Encounter)entry.Resource;
-                        var attending = encounter.Participant?
+                        var anyPhysician = encounter.Participant?
                             .FirstOrDefault(p =>
-                                p.Type != null &&
-                                p.Type.Any(t =>
-                                    t.Coding != null &&
-                                    t.Coding.Any(c =>
-                                        c.Code == "ATND" &&
-                                        (c.System == null || c.System == "http://terminology.hl7.org/CodeSystem/v3-ParticipationType")
-                                    )
-                                ) &&
                                 p.Individual != null &&
                                 p.Individual.Reference != null &&
                                 p.Individual.Reference.StartsWith("Practitioner/")
                             );
-                        if (attending != null)
+                        if (anyPhysician != null)
                         {
-                            var practitionerId = attending.Individual.Reference.Split('/').Last();
+                            var practitionerId = anyPhysician.Individual.Reference.Split('/').Last();
                             foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
                             break;
                         }
                     }
-
-                    // 2. If not found, look for any physician
-                    if (foundPractitioner == null)
-                    {
-                        foreach (var entry in result.Entry)
-                        {
-                            var encounter = (Encounter)entry.Resource;
-                            var anyPhysician = encounter.Participant?
-                                .FirstOrDefault(p =>
-                                    p.Individual != null &&
-                                    p.Individual.Reference != null &&
-                                    p.Individual.Reference.StartsWith("Practitioner/")
-                                );
-                            if (anyPhysician != null)
-                            {
-                                var practitionerId = anyPhysician.Individual.Reference.Split('/').Last();
-                                foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // 3. If still not found, check Patient.GeneralPractitioner
-                if (foundPractitioner == null && patient.GeneralPractitioner != null && patient.GeneralPractitioner.Count > 0)
-                {
-                    var gpRef = patient.GeneralPractitioner.FirstOrDefault(r => r.Reference != null && r.Reference.StartsWith("Practitioner/"));
-                    if (gpRef != null)
-                    {
-                        var practitionerId = gpRef.Reference.Split('/').Last();
-                        foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
-                    }
-                }
-
-                // Set doctorName
-                if (foundPractitioner != null && foundPractitioner.Name != null && foundPractitioner.Name.Count > 0)
-                {
-                    doctor = foundPractitioner;
-                }
-                else
-                {
-                    //want to show we checked server and found no doctor
-                    //but it's already null, so can't indicate no doctor found by setting to null
-                    //instead create a new doctor named none (maybe bad idea)
-                    doctor = new Practitioner();
-                    doctor.Name.Add(new HumanName().WithGiven("None"));
                 }
             }
-            catch (Exception e)
+
+            // 3. If still not found, check Patient.GeneralPractitioner
+            if (foundPractitioner == null && patient.GeneralPractitioner != null && patient.GeneralPractitioner.Count > 0)
             {
-                Console.WriteLine("Error loading responsible doctor: " + e.Message);
+                var gpRef = patient.GeneralPractitioner.FirstOrDefault(r => r.Reference != null && r.Reference.StartsWith("Practitioner/"));
+                if (gpRef != null)
+                {
+                    var practitionerId = gpRef.Reference.Split('/').Last();
+                    foundPractitioner = await GlobalFHIRconfig.client.ReadAsync<Practitioner>($"Practitioner/{practitionerId}");
+                }
             }
+
+            // Set doctorName
+            if (foundPractitioner != null && foundPractitioner.Name != null && foundPractitioner.Name.Count > 0)
+            {
+                doctor = foundPractitioner;
+            }
+            else
+            {
+                //want to show we checked server and found no doctor
+                //but it's already null, so can't indicate no doctor found by setting to null
+                //instead create a new doctor named none (maybe bad idea)
+                doctor = new Practitioner();
+                doctor.Name.Add(new HumanName().WithGiven("None"));
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error loading responsible doctor: " + e.Message);
+        }
     }
 
     private string GetAge(string birthDate)
@@ -481,11 +481,11 @@
                 months += 12;
             }
 
-            if(years < 1)
+            if (years < 1)
             {
                 return $"{months}m/{days}d,";
             }
-            else if(years < 10)
+            else if (years < 10)
             {
                 return $"{years}y/{months}m,";
             }
