@@ -1,4 +1,5 @@
 @rendermode InteractiveServer
+@using PotatoEMR.Components.Pages.PatientLevel
 
 @if (pat != null)
 {
@@ -121,9 +122,26 @@
             </ul>
         }
     </div>
+    <nav>
+        <a href="#" @onclick="@(() => ShowPatientPage(typeof(Allergies_pComponent), null))">Allergies</a>
+        <a href="#" @onclick="@(() => ShowPatientPage(typeof(Immunizations_pComponent), null))">Immunizations</a>
+        <a href="#" @onclick="@(() => ShowPatientPage(typeof(ProblemList_pComponent), null))">Problem List</a>
+    </nav>
+    <div id="patient-content">
+        <DynamicComponent Type="@patientPageType" Parameters="@patientPageParameters" />
+    </div>
 }
 
 @code {
+    //shows allergy by default on home screen
+    private Type patientPageType = typeof(Allergies_pComponent);
+    private Dictionary<string, object>? patientPageParameters = null;
+    private void ShowPatientPage(Type componentType, Dictionary<string, object>? parameters)
+    {
+        patientPageType = componentType;
+        patientPageParameters = parameters;
+    }
+
     [Parameter]
     public Patient? pat { get; set; }
 
@@ -170,37 +188,28 @@
             var client = GlobalFHIRconfig.client;
             var builder = new TransactionBuilder(client.Endpoint.ToString(), Bundle.BundleType.Batch);
 
-            // Add all search requests to the batch
+            // Bundle all searches in one single transaction to load page faster (eg rate limit 1s per request))
             builder.Search(new SearchParams().Where($"patient={patientId}"), "AllergyIntolerance");
             builder.Search(new SearchParams().Where($"patient={patientId}").Where("status=active"), "MedicationRequest");
             builder.Search(new SearchParams().Where($"patient={patientId}").Where("category=laboratory").OrderBy("-date"), "Observation");
-            builder.Search(new SearchParams().Where($"patient={patientId}").OrderBy("-date"), "Encounter");
+            builder.Search(new SearchParams().Where($"_id={patientId}").Include("Patient:general-practitioner"),"Patient");
             builder.Search(new SearchParams().Where($"patient={patientId}").Where("code=8302-2").OrderBy("-date").LimitTo(1), "Observation"); // Height
             builder.Search(new SearchParams().Where($"patient={patientId}").Where("code=29463-7").OrderBy("-date").LimitTo(1), "Observation"); // Weight
+            builder.Search(new SearchParams().Where($"patient={patientId}").OrderBy("-date").Include("Encounter:participant"), "Encounter");
+            //encounter includes participants because it might have their doctor info
 
             var batchBundle = builder.ToBundle();
             var response = await client.TransactionAsync(batchBundle);
 
-            // Process responses in order
             if (response?.Entry != null && response.Entry.Count >= 6)
             {
-                // Process Allergies (index 0)
                 allergies = ProcessAllergiesResponse(response.Entry[0]);
-
-                // Process Medications (index 1)
                 medications = ProcessMedicationsResponse(response.Entry[1]);
-
-                // Process Lab Results (index 2)
                 labResults = ProcessLabResultsResponse(response.Entry[2]);
-
-                // Process Encounters for admission info and doctor (index 3)
-                await ProcessEncountersResponse(response.Entry[3], patientId);
-
-                // Process Height (index 4)
+                doctor = ProcessGeneralPractitioner(response.Entry[3]); //encounter participant also sets doctor
                 heightDisplay = ProcessHeightResponse(response.Entry[4]);
-
-                // Process Weight (index 5)
                 weightDisplay = ProcessWeightResponse(response.Entry[5]);
+                ProcessEncounterResponse(response.Entry[6]); //admit date and reason, maybe set doctor
             }
         }
         catch (Exception e)
@@ -287,51 +296,28 @@
         return new List<string>();
     }
 
-    private async Task ProcessEncountersResponse(Bundle.EntryComponent entry, string patientId)
+    private Practitioner? ProcessGeneralPractitioner(Bundle.EntryComponent entry)
     {
         try
         {
-            if (entry.Resource is Bundle encounterBundle && encounterBundle.Entry != null)
+            if (entry.Resource is Bundle bundle && bundle.Entry != null)
             {
-                // Process admission info from first encounter
-                if (encounterBundle.Entry.Count > 0)
+                var practitionerEntry = bundle.Entry.FirstOrDefault(e => e.Resource is Practitioner);
+                if (practitionerEntry != null)
                 {
-                    var encounter = (Encounter)encounterBundle.Entry[0].Resource;
-                    admitDate = encounter.Period?.Start ?? "Unknown";
-
-                    if (encounter.ReasonCode != null && encounter.ReasonCode.Count > 0)
-                    {
-                        var reason = encounter.ReasonCode.FirstOrDefault();
-                        if (reason != null)
-                        {
-                            admitReason = reason.Text ?? reason.Coding?.FirstOrDefault()?.Display ?? "Unknown";
-                        }
-                        else
-                        {
-                            admitReason = "Unknown";
-                        }
-                    }
-                    else
-                    {
-                        admitReason = "Unknown";
-                    }
+                    return (Practitioner)practitionerEntry.Resource;
                 }
-                else
-                {
-                    admitDate = "None";
-                    admitReason = "None";
-                }
-
-                // Process doctor info from encounters
-                await ProcessDoctorFromEncounters(encounterBundle.Entry, patientId);
             }
         }
         catch (Exception e)
         {
-            Console.WriteLine("Error processing encounters: " + e.Message);
-            admitDate = "Error";
-            admitReason = "Error";
+            Console.WriteLine("Error processing general practitioner: " + e.Message);
         }
+        //didn't find a doctor here, so setting it to a new "None" guy
+        //but might find one later associated with encounter. could also add careTeam lookup
+        Practitioner noneDoctor = new Practitioner();
+        noneDoctor.Name.Add(new HumanName().WithGiven("None"));
+        return noneDoctor;
     }
 
     private async Task ProcessDoctorFromEncounters(IList<Bundle.EntryComponent> encounters, string patientId)
@@ -403,11 +389,6 @@
             {
                 doctor = foundPractitioner;
             }
-            else
-            {
-                doctor = new Practitioner();
-                doctor.Name.Add(new HumanName().WithGiven("None"));
-            }
         }
         catch (Exception e)
         {
@@ -424,7 +405,7 @@
                 var obs = (Observation)heightBundle.Entry[0].Resource;
                 if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
                 {
-                    return $"{q.Value} {q.Unit}";
+                    return $"{Math.Round(Convert.ToDecimal(q.Value), 1)} {q.Unit}";
                 }
             }
         }
@@ -444,7 +425,7 @@
                 var obs = (Observation)weightBundle.Entry[0].Resource;
                 if (obs.Value is Quantity q && q.Value != null && !string.IsNullOrEmpty(q.Unit))
                 {
-                    return $"{q.Value} {q.Unit}";
+                    return $"{Math.Round(Convert.ToDecimal(q.Value), 1)} {q.Unit}";
                 }
             }
         }
@@ -453,6 +434,51 @@
             Console.WriteLine("Error processing weight: " + e.Message);
         }
         return "None";
+    }
+
+    private void ProcessEncounterResponse(Bundle.EntryComponent entry)
+    {
+        try
+        {
+            if (entry.Resource is Bundle encounterBundle && encounterBundle.Entry?.Count > 0)
+            {
+                // Find most recent encounter
+                var mostRecent = encounterBundle.Entry
+                    .Select(e => e.Resource as Encounter)
+                    .Where(e => e?.Period?.Start != null)
+                    .OrderByDescending(e => e?.Period.Start)
+                    .FirstOrDefault();
+
+                if (mostRecent != null)
+                {
+                    admitDate = DateTime.TryParse(mostRecent.Period.Start, out var dt)
+                        ? dt.ToString("g")
+                        : mostRecent.Period.Start;
+                    admitReason = mostRecent.ReasonCode?.FirstOrDefault()?.Text ?? "Unknown";
+
+                    // Set doctor from first Practitioner participant in encounter
+                    var practitionerRef = mostRecent.Participant?
+                        .Select(p => p.Individual?.Reference)
+                        .FirstOrDefault(r => r != null && r.StartsWith("Practitioner/"));
+
+                    if (!string.IsNullOrEmpty(practitionerRef))
+                    {
+                        var practitionerId = practitionerRef.Split('/').Last();
+                        doctor = encounterBundle.Entry
+                            .Select(e => e.Resource)
+                            .OfType<Practitioner>()
+                            .FirstOrDefault(p => p.Id == practitionerId);
+                    }
+                    return;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Error processing encounter: " + e.Message);
+        }
+        admitDate = "None";
+        admitReason = "None";
     }
 
     private string GetAge(string birthDate)
