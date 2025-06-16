@@ -6,6 +6,7 @@ Provide minimal solution, for example if asked to create html component, don't a
 Above all keep it simple, which generally means fewer/shorter lines, but not always, for example ternary operator is less clear than if/else and does not simplify code
 Do not add obvious comments like "counter++; // increment counter"
 Do comment when you change code in one place that affects code in another function or file, make a note on the affected code pointing back to your change
+Do not delete existing comments (unless also deleting the code they describe)
 C# firely sdk for FHIR models, API https://docs.fire.ly/projects/Firely-NET-SDK/en/latest/model.html
 Example: await GlobalFHIRconfig.client.SearchAsync<Patient>(new string[] { $"name={input}", "_count=10" });
 Multiple concurrent requests should be bundled together: builder = new TransactionBuilder(client.Endpoint.ToString(), Bundle.BundleType.Batch);

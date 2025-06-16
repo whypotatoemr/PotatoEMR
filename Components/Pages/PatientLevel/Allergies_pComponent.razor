@@ -11,20 +11,100 @@ else
     <table>
         <thead>
             <tr>
-                <th>Allergy</th>
+                <th>Allergen</th>
+                <th>Severity</th>
+                <th>Date</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
             @foreach (var allergy in Allergies)
             {
                 <tr>
-                    <td>allergy @allergy</td>
+                    <td>@(allergy.Code?.Text ?? allergy.Code?.Coding?.FirstOrDefault()?.Display ?? "-")</td>
+                    <td>
+                        @(
+                            allergy.Reaction?.FirstOrDefault()?.Severity != null
+                                ? allergy.Reaction.First().Severity
+                                : "-"
+                        )
+                    </td>
+                    <td>
+                        @{
+                            /*
+                            * fhir gives a number of ways to record allergy time:
+                            * ..onset[x]     0..1        When allergy or intolerance was identified
+                                *  ....onsetDateTime       dateTime
+                                * ....onsetAge                 Age
+                                * ....onsetPeriod           Period
+                                * ....onsetRange            Range
+                                * ....onsetString           string
+                            * ... recordedDate       0..1    dateTime Date allergy or intolerance was first recorded
+                            * lastOccurrence		0..1	dateTime	Date(/time) of last known occurrence of a reaction
+                            * so date field could mean different things in table
+                            */
+                                                    string dateStr = "-";
+
+                            if (!string.IsNullOrEmpty(allergy.LastOccurrence))
+                            {
+                                dateStr = allergy.LastOccurrence;
+                            }
+                            else if (allergy.Onset != null)
+                            {
+                                if (allergy.Onset is Hl7.Fhir.Model.FhirDateTime onsetDateTime)
+                                    dateStr = onsetDateTime.Value;
+                                else if (allergy.Onset is Hl7.Fhir.Model.Age onsetAge)
+                                {
+                                    if(onsetAge.Value != null)
+                                    {
+                                        if (onsetAge.Unit == null)
+                                            dateStr = $"age {onsetAge.Value}";
+                                        else
+                                            dateStr = $"age {onsetAge.Value} {onsetAge.Unit}";
+                                    }
+                                }
+                                else if (allergy.Onset is Hl7.Fhir.Model.Period onsetPeriod)
+                                    dateStr = onsetPeriod.End;
+                                else if (allergy.Onset is Hl7.Fhir.Model.Range onsetRange)
+                                    dateStr = $"{onsetRange.Low.ToString()}-{onsetRange.High.ToString()}";
+                                else if (allergy.Onset is Hl7.Fhir.Model.FhirString onsetString)
+                                    dateStr = onsetString.Value;
+                            }
+                            else if (!string.IsNullOrEmpty(allergy.RecordedDate))
+                            {
+                                dateStr = allergy.RecordedDate;
+                            }
+
+                            if (DateTime.TryParse(dateStr, out var dt))
+                                dateStr = dt.ToString("yyyy-MM-dd");
+                        }
+                        @dateStr
+                    </td>
+
+                    <td>
+                        <UI_Dialog>
+                            <Trigger>
+                                <span class="text-blue-600 underline cursor-pointer">Details</span>
+                            </Trigger>
+                            <Title>Allergy Details</Title>
+                            <Description>FHIR Resource: AllergyIntolerance</Description>
+                            <Body>
+                                <p><strong>Substance:</strong> @(allergy.Code?.Text ?? allergy.Code?.Coding?.FirstOrDefault()?.Display ?? "-")</p>
+                                <p>
+                                    <strong>Severity:</strong>idk severity                                                        )
+                                </p>
+                                <p><strong>Date:</strong> @dateStr</p>
+                            </Body>
+                            <Footer>
+                                <button class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">OK</button>
+                            </Footer>
+                        </UI_Dialog>
+                    </td>
                 </tr>
             }
         </tbody>
     </table>
 }
-
 @code {
     [Parameter]
     public Bundle? AllergyBundle { get; set; }
@@ -59,7 +139,7 @@ else
                 Console.WriteLine($"Allergies_pComponent error: {ex.Message}");
                 Allergies = null;
             }
-    }
+        }
         else
         {
             Allergies = null;
