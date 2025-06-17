@@ -105,6 +105,17 @@ else
         </tbody>
     </table>
 }
+<p>hello</p>
+<UI_Button text="Details" ButtonColor=@UI_Colors.Primary TextColor=@UI_Colors.Light @onclick="myfunc" />
+<UI_Button text="Details" ButtonColor=@UI_Colors.Secondary TextColor=@UI_Colors.Light @onclick="myfunc" />
+<UI_Button text="Details" ButtonColor=@UI_Colors.Tertiary TextColor=@UI_Colors.Dark @onclick="myfunc" />
+<UI_Button text="Details" ButtonColor=@UI_Colors.Warning TextColor=@UI_Colors.Dark @onclick="myfunc" />
+<UI_Button text="Details" ButtonColor=@UI_Colors.Danger TextColor=@UI_Colors.Light @onclick="myfunc" />
+<UI_Button text="Details" ButtonColor=@UI_Colors.Info TextColor=@UI_Colors.Dark @onclick="myfunc" />
+<UI_Button text="Details" ButtonColor=@UI_Colors.Success TextColor=@UI_Colors.Light @onclick="myfunc" />
+<UI_Button text="Details" ButtonColor=@UI_Colors.Light TextColor=@UI_Colors.Dark @onclick="myfunc" />
+<UI_Button text="Details" ButtonColor=@UI_Colors.Dark TextColor=@UI_Colors.Light @onclick="myfunc" />
+
 @code {
     [Parameter]
     public Bundle? AllergyBundle { get; set; }
@@ -144,5 +155,9 @@ else
         {
             Allergies = null;
         }
+    }
+    private async Task myfunc(MouseEventArgs args)
+    {
+        Console.WriteLine("button clicked");
     }
 }

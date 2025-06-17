@@ -1,9 +1,12 @@
 Omit needless words
 Use as few lines of code as possible, but keep code clear and simple
-For example, do not use complex patterns like injection if not neeeded
+Above all keep it simple, which generally means fewer/shorter lines, but not always, for example ternary operator is less clear than if/else and does not simplify code
+Do not use complex patterns like injection if not neeeded
 Fix only what's in scope of question, don't change other code
 Provide minimal solution, for example if asked to create html component, don't add CSS
-Above all keep it simple, which generally means fewer/shorter lines, but not always, for example ternary operator is less clear than if/else and does not simplify code
+Don't repeat yourself, use definitions from one place so all instances can be changed at once
+Prioritize locality so you can understand that source by looking at only a small portion of it
+The behaviour of a unit of code should be as obvious as possible by looking only at that unit of code
 Do not add obvious comments like "counter++; // increment counter"
 Do comment when you change code in one place that affects code in another function or file, make a note on the affected code pointing back to your change
 Do not delete existing comments (unless also deleting the code they describe)
