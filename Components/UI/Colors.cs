@@ -1,7 +1,7 @@
 namespace Components.UI
 {
     
-    public static class UI_Colors
+    public static class Colors
     {
         public const string Primary = "primary";
         public const string Secondary = "secondary";

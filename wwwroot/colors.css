@@ -1,20 +1,39 @@
 :root {
     --primary: #0d6efd;
     --primary-hover: #084298;
+    --primary-text: white;
     --secondary: #6c757d;
     --secondary-hover: #5c636a;
+    --secondary-text: white;
     --tertiary: #e2e3e5;
     --tertiary-hover: rgb(190, 160, 254);
+    --tertiary-text: black;
     --success: #198754;
     --success-hover: #0f5132;
+    --success-text: black;
     --warning: #ffc107;
     --warning-hover: #e0a800;
+    --warning-text: black;
     --danger: #dc3545;
     --danger-hover: #7a1a23;
+    --danger-text: white;
     --info: #0dcaf0;
     --info-hover: #09788c;
+    --info-text: black;
     --light: #f8f9fa;
     --light-hover: rgb(190, 160, 254);
+    --light-text: black;
     --dark: #212529;
     --dark-hover: #6f42c1;
+    --dark-text: white;
 }
+
+[data-color="primary"]   { --background-color: var(--primary);   --hover-color: var(--primary-hover);   --text-color: var(--primary-text); }
+[data-color="secondary"] { --background-color: var(--secondary); --hover-color: var(--secondary-hover); --text-color: var(--secondary-text); }
+[data-color="tertiary"]  { --background-color: var(--tertiary);  --hover-color: var(--tertiary-hover);  --text-color: var(--tertiary-text); }
+[data-color="success"]   { --background-color: var(--success);   --hover-color: var(--success-hover);   --text-color: var(--success-text); }
+[data-color="danger"]    { --background-color: var(--danger);    --hover-color: var(--danger-hover);    --text-color: var(--danger-text); }
+[data-color="warning"]   { --background-color: var(--warning);   --hover-color: var(--warning-hover);   --text-color: var(--warning-text); }
+[data-color="info"]      { --background-color: var(--info);      --hover-color: var(--info-hover);      --text-color: var(--info-text); }
+[data-color="light"]     { --background-color: var(--light);     --hover-color: var(--light-hover);     --text-color: var(--light-text); }
+[data-color="dark"]      { --background-color: var(--dark);      --hover-color: var(--dark-hover);      --text-color: var(--dark-text); }

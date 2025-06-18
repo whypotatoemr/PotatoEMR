@@ -1,0 +1,61 @@
+﻿<span @onclick="OpenDialog">
+    @Trigger
+</span>
+
+@if (isOpen)
+{
+    <div class="UIpopup" data-color="@DataColor" style="left:@(offsetX)px;top:@(offsetY)px;" @onmousedown:stopPropagation>
+        <div class="UIpopup-header"
+             @onmousedown="StartDrag">
+            <span class="UIpopup-title">
+                @Header
+            </span>
+            <button class="UIpopup-close" @onclick="CloseDialog" tabindex="0" aria-label="Close">&times;</button>
+        </div>
+        <div class="UIpopup-body">
+            @Body
+        </div>
+        @if (Footer != null)
+        {
+            <div class="UIpopup-footer">
+                @Footer
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public RenderFragment? Trigger { get; set; }
+    [Parameter] public RenderFragment? Header { get; set; }
+    [Parameter] public RenderFragment? Body { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+    [Parameter] public string DataColor { get; set; } = Colors.Primary;
+
+
+    private bool isOpen = false;
+    private double offsetX = 100, offsetY = 100;
+    private double startX, startY;
+
+    [Inject] IJSRuntime JS { get; set; } = default!;
+
+    private void OpenDialog() => isOpen = true;
+    private void CloseDialog() => isOpen = false;
+
+    private async void StartDrag(MouseEventArgs e)
+    {
+        startX = e.ClientX;
+        startY = e.ClientY;
+        await JS.InvokeVoidAsync("popupStartDrag", 
+            DotNetObjectReference.Create(this), startX, startY);
+    }
+
+    [JSInvokable]
+    public void OnDrag(double clientX, double clientY)
+    {
+        offsetX += clientX - startX;
+        offsetY += clientY - startY;
+        startX = clientX;
+        startY = clientY;
+        StateHasChanged();
+    }
+}

@@ -1,7 +1,8 @@
-<button @onclick="OnClick" data-color="@ButtonColor" style="color:var(--@TextColor);">@text</button>
+<button @onclick="OnClick" data-color="@DataColor">
+    @ChildContent
+</button>
 @code {
-    [Parameter] public string text { get; set; } = "";
     [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
-    [Parameter] public string ButtonColor { get; set; } = UI_Colors.Primary;
-    [Parameter] public string TextColor { get; set; } = UI_Colors.Light;
+    [Parameter] public string DataColor { get; set; } = Colors.Primary;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
 }

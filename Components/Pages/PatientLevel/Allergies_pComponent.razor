@@ -82,23 +82,68 @@ else
                     </td>
 
                     <td>
-                        <UI_Dialog>
+                        <UI_Popup DataColor=@Colors.Tertiary>
                             <Trigger>
-                                <span class="text-blue-600 underline cursor-pointer">Details</span>
+                                <span>Details</span>
                             </Trigger>
-                            <Title>Allergy Details</Title>
-                            <Description>FHIR Resource: AllergyIntolerance</Description>
+                            <Header>
+                                @(allergy.Code?.Text ?? allergy.Code?.Coding?.FirstOrDefault()?.Display ?? "")
+                            </Header>
                             <Body>
-                                <p><strong>Substance:</strong> @(allergy.Code?.Text ?? allergy.Code?.Coding?.FirstOrDefault()?.Display ?? "-")</p>
-                                <p>
-                                    <strong>Severity:</strong>idk severity                                                        )
-                                </p>
-                                <p><strong>Date:</strong> @dateStr</p>
+                                <div style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px;">
+                                    <!-- Agent: label+input spans 6 columns -->
+                                    <div style="grid-column: 1 / span 6; display: flex; align-items: center; gap: 5px;">
+                                        <label for="agent">Agent:</label>
+                                        <input type="text" id="agent" value="@(allergy.Code?.Text ?? allergy.Code?.Coding?.FirstOrDefault()?.Display)" />
+                                    </div>
+                                    <!-- Comments: label above textarea, spans 6 columns -->
+                                    <div style="grid-column: 7 / span 6; display: flex; flex-direction: column;">
+                                        <label for="comments">Comments:</label>
+                                        <textarea id="comments"></textarea>
+                                    </div>
+
+                                    <!-- Reactions and Reaction type stacked in the same 3-column cell -->
+                                    <div style="grid-column: 1 / span 3; display: flex; flex-direction: column; gap: 5px;">
+                                        <div>
+                                            <label>Reactions:</label>
+                                            <div style="display: flex; flex-direction: column; flex: 1;">
+                                                @for (int i = 0; i < 3; i++)
+                                                {
+                                                    var manifestation = allergy.Reaction?.FirstOrDefault()?.Manifestation?.ElementAtOrDefault(i);
+                                                    <input type="text" value="@(manifestation?.Text ?? manifestation?.Coding?.FirstOrDefault()?.Display)" />
+                                                }
+                                            </div>
+                                        </div>
+                                        <div >
+                                            <label for="reaction-type">Reaction type:</label>
+                                            <select id="reaction-type" @bind="allergy.Type">
+                                                @foreach (var type in Enum.GetValues(typeof(AllergyIntolerance.AllergyIntoleranceType)).Cast<AllergyIntolerance.AllergyIntoleranceType>())
+                                                {
+                                                    <option value="@type">@type</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Severity: label+input spans 3 columns -->
+                                    <div style="grid-column: 4 / span 3;">
+                                        <div >
+                                            <label for="severity">Severity:</label>
+                                            <input type="text" id="severity" value="@(allergy.Reaction?.FirstOrDefault()?.Severity?.ToString() ?? "")" />
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 5px; margin-top: 10px;">
+                                            <label for="date-noted">Noted:</label>
+                                            <input type="text" id="date-noted" value="@(allergy.RecordedDate ?? "")" />
+                                        </div>
+                                    </div>
+                                </div>
                             </Body>
                             <Footer>
-                                <button class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">OK</button>
+                                <UI_Button DataColor=@Colors.Primary @onclick="() => saveAllergy(allergy)">Save</UI_Button>
+                                <UI_Button DataColor=@Colors.Danger @onclick="myfunc">Delete</UI_Button>
+                                <UI_Button DataColor=@Colors.Danger @onclick="myfunc">Close</UI_Button>
                             </Footer>
-                        </UI_Dialog>
+                        </UI_Popup>
                     </td>
                 </tr>
             }
@@ -106,15 +151,6 @@ else
     </table>
 }
 <p>hello</p>
-<UI_Button text="Details" ButtonColor=@UI_Colors.Primary TextColor=@UI_Colors.Light @onclick="myfunc" />
-<UI_Button text="Details" ButtonColor=@UI_Colors.Secondary TextColor=@UI_Colors.Light @onclick="myfunc" />
-<UI_Button text="Details" ButtonColor=@UI_Colors.Tertiary TextColor=@UI_Colors.Dark @onclick="myfunc" />
-<UI_Button text="Details" ButtonColor=@UI_Colors.Warning TextColor=@UI_Colors.Dark @onclick="myfunc" />
-<UI_Button text="Details" ButtonColor=@UI_Colors.Danger TextColor=@UI_Colors.Light @onclick="myfunc" />
-<UI_Button text="Details" ButtonColor=@UI_Colors.Info TextColor=@UI_Colors.Dark @onclick="myfunc" />
-<UI_Button text="Details" ButtonColor=@UI_Colors.Success TextColor=@UI_Colors.Light @onclick="myfunc" />
-<UI_Button text="Details" ButtonColor=@UI_Colors.Light TextColor=@UI_Colors.Dark @onclick="myfunc" />
-<UI_Button text="Details" ButtonColor=@UI_Colors.Dark TextColor=@UI_Colors.Light @onclick="myfunc" />
 
 @code {
     [Parameter]
@@ -158,6 +194,28 @@ else
     }
     private async Task myfunc(MouseEventArgs args)
     {
-        Console.WriteLine("button clicked");
+     
+    }
+
+    private async Task saveAllergy(AllergyIntolerance allergy)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(allergy.Id))
+            {
+                var result = await GlobalFHIRconfig.client.CreateAsync(allergy);
+                Console.WriteLine($"Created allergy: {result.Id}");
+            }
+            else
+            {
+                var result = await GlobalFHIRconfig.client.UpdateAsync(allergy);
+                Console.WriteLine($"Updated allergy: {result.Id}");
+            }
+            Console.WriteLine("allergy type: " + allergy.Type);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving allergy: {ex.Message}");
+        }
     }
 }

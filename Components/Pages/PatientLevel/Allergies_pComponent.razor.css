@@ -1,0 +1,52 @@
+﻿.allergy-form {
+    border: 1px solid #ccc;
+    padding: 15px;
+    width: 500px;
+    background: #f9f9fc;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    background: #e8e8fa;
+    padding: 5px 10px;
+    font-weight: bold;
+}
+
+.add-agent {
+    background-color: #d9edf7;
+    border: 1px solid #bce8f1;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.form-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+    .form-row label {
+        width: 120px;
+        font-weight: bold;
+    }
+
+    .form-row input,
+    .form-row select {
+        width: 300px;
+        padding: 5px;
+        border: 1px solid #ccc;
+    }
+
+.form-actions {
+    margin-top: 15px;
+}
+
+.form-actions button {
+    margin-right: 10px;
+    padding: 6px 12px;
+    background-color: #f5f5f5;
+    border: 1px solid #ccc;
+}

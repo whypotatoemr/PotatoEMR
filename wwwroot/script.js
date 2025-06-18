@@ -1,11 +1,11 @@
-﻿// blazor can handle drag and drop without js interop
-// just need this to stop showing not allowed cursor
-document.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    document.body.style.cursor = "move";
-    console.log("dragover");
-});
-
-document.addEventListener("dragleave", () => {
-    document.body.style.cursor = "";
-});
+﻿window.popupStartDrag = function (dotnetRef, startX, startY) {
+    function moveHandler(e) {
+        dotnetRef.invokeMethodAsync('OnDrag', e.clientX, e.clientY);
+    }
+    function upHandler() {
+        document.removeEventListener('mousemove', moveHandler);
+        document.removeEventListener('mouseup', upHandler);
+    }
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', upHandler);
+};
